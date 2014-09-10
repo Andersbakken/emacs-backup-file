@@ -344,6 +344,4 @@
   (interactive)
   (backup-file-jump -1))
 
-
-
 (provide 'backup-file)
