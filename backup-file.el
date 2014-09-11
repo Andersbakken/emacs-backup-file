@@ -124,10 +124,7 @@
     (backup-file-git nil "init")))
 
 (defun backup-file-file-path (file)
-  (when file
-    (let ((truename (file-truename file)))
-      (unless (string-match "/\.git/" truename)
-        (concat (expand-file-name backup-file-location) truename)))))
+  (and file (concat (expand-file-name backup-file-location) (replace-regexp-in-string "/\.git/" "/dot.git/" (file-truename file)))))
 
 (defun backup-file ()
   (interactive)
