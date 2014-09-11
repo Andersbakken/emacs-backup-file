@@ -184,9 +184,8 @@
   (unless (stringp file)
     (error "Backup-file needs a file"))
 
-  (let* ((backup-dir (expand-file-name backup-file-location))
-         (old default-directory)
-         (git-filepath (concat backup-dir file)))
+  (let* ((old default-directory)
+         (git-filepath (backup-file-file-path file)))
     (unless (file-exists-p git-filepath)
       (error "Backup-file: No backups for \"%s\"" file))
     (if (get-buffer backup-file-buffer-name)
@@ -200,7 +199,7 @@
                                "--no-pager"
                                "log"
                                "--pretty=format:%h%ar"
-                               "--" (expand-file-name (concat backup-file-location file)))))
+                               "--" git-filepath)))
       (cd old)
       (set-process-query-on-exit-flag proc nil)
       ;; (set-process-filter proc (car async))
