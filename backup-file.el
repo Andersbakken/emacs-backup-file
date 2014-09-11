@@ -19,7 +19,7 @@
     (define-key (backup-file-buffer-local-mode-keymap backup-file-buffer-local-mode)
       key action)
     (return-from backup-file-buffer-local-buffer-local-set-key))
-  (let* ((mode-name-loc (gensym "-blm")))
+  (let* ((mode-name-loc (cl-gensym "-blm")))
     (eval `(define-minor-mode ,mode-name-loc nil nil nil (make-sparse-keymap)))
     (setq backup-file-buffer-local-mode mode-name-loc)
     (funcall mode-name-loc 1)
@@ -50,6 +50,12 @@
 (define-key backup-file-mode-map (kbd "RET") (function backup-file-select-revision-at-point-or-diff-goto-source))
 (define-key backup-file-mode-map (kbd "ENTER") (function backup-file-select-revision-at-point-or-diff-goto-source))
 
+(defun backup-file/.git ()
+  (concat (expand-file-name backup-file-location) "/.git"))
+
+(defun backup-file/--git-dir ()
+  (concat "--git-dir=" (backup-file/.git)))
+
 (defun backup-file-bury ()
   (interactive)
   (if (> (length (window-list)) 1)
@@ -58,54 +64,62 @@
   (switch-to-buffer backup-file-buffer-name))
 
 (defun backup-file-apply-show-revision-map ()
-  (buffer-local-set-key (kbd "q") (function backup-file-bury))
-  (buffer-local-set-key (kbd "n") (function backup-file-next))
-  (buffer-local-set-key (kbd "p") (function backup-file-prev))
-  (buffer-local-set-key (kbd "Q") (function backup-file-kill-current-buffer)))
+  (backup-file-buffer-local-buffer-local-set-key (kbd "q") (function bury-buffer))
+  (backup-file-buffer-local-buffer-local-set-key (kbd "n") (function backup-file-next))
+  (backup-file-buffer-local-buffer-local-set-key (kbd "p") (function backup-file-prev))
+  (backup-file-buffer-local-buffer-local-set-key (kbd "Q") (function backup-file-kill-current-buffer)))
 
 (define-derived-mode backup-file-mode text-mode
   (setq font-lock-defaults diff-font-lock-defaults)
   (setq mode-name "backup-file")
   (use-local-map backup-file-mode-map)
-  (run-hooks 'backup-file-mode-hook)
-  )
+  (run-hooks 'backup-file-mode-hook))
 
 (defun backup-file-replace-regexp (rx to)
   (save-excursion
     (while (re-search-forward rx nil t)
-      (replace-match to nil nil))
-    )
-  )
+      (replace-match to nil nil))))
 
-(defun backup-file-git (&rest arguments)
-  (let ((old default-directory))
-    (cd (expand-file-name backup-file-location))
+(defun backup-file-git (output &rest arguments)
+  (let ((old default-directory)
+        (outbuf (or output (get-buffer-create "*Backup-file-log*"))))
+    (cd backup-file-location)
+    (unless output
+      (with-current-buffer outbuf
+        (goto-char (point-max))
+        (insert "git " (combine-and-quote-strings arguments) " =>\n")))
+    (message default-directory)
     (apply #'call-process "git"
            nil
-           (current-buffer)
-           t ;; ### ??? t?
+           outbuf
+           nil
            arguments)
     (cd old)))
 
+(defun backup-file-ensure-depot ()
+  (when (not (file-directory-p (backup-file/.git)))
+    (mkdir (expand-file-name backup-file-location) t)
+    (backup-file-git nil "init")))
+
+(defun backup-file-file-path (file)
+  (and file (concat (expand-file-name backup-file-location) (file-truename file))))
+
 (defun backup-file ()
   (interactive)
-  (let* ((path (buffer-file-name))
-         (truename (and path (file-truename path))))
-    (if truename
-        (let* ((backup-dir (expand-file-name backup-file-location))
-               (.git (concat backup-dir ".git"))
-               (--git-dir (concat "--git-dir=" .git))
-               (git-filepath (concat backup-dir truename)))
-          (unless (file-directory-p .git)
-            (progn
-              (mkdir backup-dir)
-              (call-process "git" nil nil nil --git-dir "init")))
-          (mkdir (file-name-directory git-filepath) t)
-          (save-restriction
-            (widen)
-            (write-region (point-min) (point-max) git-filepath))
-          (call-process "git" nil nil nil --git-dir "add" git-filepath)
-          (start-process "git-backup-file" nil "git" --git-dir "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory git-filepath)))))))
+  (let* ((path (backup-file-file-path (buffer-file-name))))
+    (when path
+      (backup-file-ensure-depot)
+      (mkdir (file-name-directory path) t)
+      (save-restriction
+        (widen)
+        (write-region (point-min) (point-max) path))
+      (let ((old default-directory))
+        ;; (setq default-directory backup-file-location)
+        (cd backup-file-location)
+        (call-process "git" nil t nil "add" path)
+        ;; (setq default-directory old)
+        (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
+        (cd old)))))
 
 (defun backup-file-git-log-sentinel (process state)
   (when (string= state "finished\n")
@@ -114,7 +128,6 @@
           (with-current-buffer buf
             (setq buffer-read-only nil)
             (goto-char (point-min))
-            (flush-lines "Process finished rc" (point-min) (point-max) nil)
             (goto-char(point-min))
             (setq backup-file-showing-inline-diffs nil)
             (setq backup-file-last-data (list))
@@ -149,35 +162,41 @@
   (unless (stringp file)
     (error "Backup-file needs a file"))
 
-  (if (get-buffer backup-file-buffer-name)
-      (kill-buffer backup-file-buffer-name))
-  (switch-to-buffer (get-buffer-create backup-file-buffer-name))
-  (cd (expand-file-name backup-file-location))
-  (let ((proc (start-process "git backup-file"
-                             (current-buffer)
-                             "git"
-                             "--no-pager"
-                             "log"
-                             "--pretty=format:%h%ar"
-                             "--" (expand-file-name (concat backup-file-location file)))))
-    (set-process-query-on-exit-flag proc nil)
-    ;; (set-process-filter proc (car async))
-    (setq backup-file-last-file file)
-    (set-process-sentinel proc (function backup-file-git-log-sentinel)))
-  )
+  (let* ((backup-dir (expand-file-name backup-file-location))
+         (old default-directory)
+         (git-filepath (concat backup-dir file)))
+    (unless (file-exists-p git-filepath)
+      (error "Backup-file: No backups for \"%s\"" file))
+    (if (get-buffer backup-file-buffer-name)
+        (kill-buffer backup-file-buffer-name))
+    (switch-to-buffer (get-buffer-create backup-file-buffer-name))
+    (cd backup-file-location)
+    (let ((proc (start-process "git backup-file"
+                               (current-buffer)
+                               "git"
+                               (backup-file/--git-dir)
+                               "--no-pager"
+                               "log"
+                               "--pretty=format:%h%ar"
+                               "--" (expand-file-name (concat backup-file-location file)))))
+      (cd old)
+      (set-process-query-on-exit-flag proc nil)
+      ;; (set-process-filter proc (car async))
+      (setq backup-file-last-file file)
+      (set-process-sentinel proc (function backup-file-git-log-sentinel)))))
 
 (defun backup-file-redisplay ()
   (setq buffer-read-only nil)
   (erase-buffer)
-  (let ((old default-directory) (i 1) (replace nil)
+  (let ((i 1)
+        (replace)
         (filename (file-name-nondirectory backup-file-last-file))
         (revformat (format "%%0%dd" (length (int-to-string (length backup-file-last-data))))))
-    (cd (expand-file-name backup-file-location))
     (dolist (data backup-file-last-data)
       (insert "Revision #" (format revformat i) " -- " (car data) " -- " filename " -- " (cdr data) "\n")
       (when (cond ((integerp backup-file-showing-inline-diffs) (= backup-file-showing-inline-diffs i))
                   (t backup-file-showing-inline-diffs))
-        (call-process "git" nil (current-buffer) nil "show" (car data))
+        (backup-file-git (current-buffer) "show" (car data))
         (setq replace t)
         (insert "\n"))
       (incf i)
@@ -190,7 +209,6 @@
     (when replace
       (backup-file-replace-regexp "^--- a/" "--- /")
       (backup-file-replace-regexp "^+++ b/" "+++ /"))
-    (cd old)
     )
   (setq buffer-read-only t)
   )
@@ -229,12 +247,12 @@
               (kill-buffer backup-file-last-temp-buffer))
           (switch-to-buffer (get-buffer-create bufname))
           (setq backup-file-last-temp-buffer (current-buffer))
-          (backup-file-git "show" (car (backup-file-data-nth index)))
+          (backup-file-git (current-buffer) "show" (car (backup-file-data-nth index)))
           (goto-char (point-min))
           (backup-file-replace-regexp "^--- a/" "--- /")
           (backup-file-replace-regexp "^+++ b/" "+++ /")
           (diff-mode)
-          (buffer-local-set-key (kbd "q") (function backup-file-bury))
+          (backup-file-buffer-local-buffer-local-set-key (kbd "q") (function bury-buffer))
           (setq buffer-read-only t))
       )
     )
@@ -288,7 +306,7 @@
             (kill-buffer backup-file-last-temp-buffer))
         (switch-to-buffer (get-buffer-create bufname))
         (setq backup-file-last-temp-buffer (current-buffer))
-        (backup-file-git "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
+        (backup-file-git nil "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
         (setq buffer-file-name backup-file-last-file)
         (set-auto-mode)
         (setq buffer-file-name nil)
@@ -307,8 +325,7 @@
 (defun backup-file-update ()
   (interactive)
   (if backup-file-last-file
-      (backup-file-log backup-file-last-file))
-  )
+      (backup-file-log backup-file-last-file)))
 
 (defun backup-file-revert-to-revision-at-point ()
   (interactive)
@@ -319,15 +336,12 @@
               (y-or-n-p (format "%s is modified. Are you sure you want to discard your changes? " backup-file-last-file)))
       (find-file backup-file-last-file)
       (erase-buffer)
-      (backup-file-git "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
+      (backup-file-git nil "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
       (goto-char (point-min))
       (message "Reverted to revision #%d - %s - %s"
                index
                (car (backup-file-data-nth index))
-               (cdr (backup-file-data-nth index)))
-      )
-    )
-  )
+               (cdr (backup-file-data-nth index))))))
 
 (defun backup-file-jump (offset)
   (if (and (string-match "\\*\\(.*\\)#\\([0-9]+\\)\\*" (buffer-name))
