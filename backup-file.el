@@ -357,7 +357,7 @@
               (y-or-n-p (format "%s is modified. Are you sure you want to discard your changes? " backup-file-last-file)))
       (find-file backup-file-last-file)
       (erase-buffer)
-      (backup-file-git nil "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
+      (backup-file-git (current-buffer) "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
       (goto-char (point-min))
       (message "Reverted to revision #%d - %s - %s"
                index
