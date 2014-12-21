@@ -138,7 +138,7 @@
       (let ((old default-directory))
         ;; (setq default-directory backup-file-location)
         (cd backup-file-location)
-        (call-process "git" nil t nil "add" path)
+        (call-process "git" nil nil nil "add" path)
         ;; (setq default-directory old)
         (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
         (cd old)))))
