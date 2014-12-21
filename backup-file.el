@@ -29,6 +29,7 @@
 (defvar backup-file-mode-hook nil)
 (defcustom backup-file-reuse-temp-buffers t "Whether to reuse temp buffers for backup-file" :group 'backup-file
   :type 'boolean)
+(defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :type 'boolean)
 
 (defvar backup-file-buffer-local-mode nil)
 (make-variable-buffer-local 'backup-file-buffer-local-mode)
@@ -104,7 +105,7 @@
 
 (defun backup-file-git (output &rest arguments)
   (let ((old default-directory)
-        (outbuf (or output (get-buffer-create "*Backup-file-log*"))))
+        (outbuf (or output (and (backup-file-log get-buffer-create "*Backup-file-log*")))))
     (cd backup-file-location)
     (unless output
       (with-current-buffer outbuf
