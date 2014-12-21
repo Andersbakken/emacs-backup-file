@@ -380,4 +380,24 @@
   (interactive)
   (backup-file-jump -1))
 
+(defun backup-file-truncate-history (&optional date)
+  (interactive)
+  (let ((temp "temp_remove_old_history")
+        (commit (or (with-temp-buffer
+                      (backup-file-git (current-buffer) "log" "--reverse" (concat "--since=" (or date "1 week ago")) "--pretty=%h")
+                      (and (> (point-max) (point-min))
+                           (goto-char (point-min))
+                           (buffer-substring-no-properties (point-min) (point-at-eol))))
+                    (with-temp-buffer
+                      (backup-file-git (current-buffer) "rev-parse" "--short" "HEAD")
+                      (buffer-substring-no-properties (point-min) (1- (point-max)))))))
+    (unless commit
+      (error "Can't find a commit to reset to"))
+    (backup-file-git nil "checkout" "--orphan" temp commit)
+    (backup-file-git nil "commit" "--allow-empty" "-m" "Truncated history")
+    (backup-file-git nil "rebase" "--onto" temp commit "master")
+    (backup-file-git nil "branch" "-D" temp)
+    (backup-file-git nil "prune" "--progress")
+    (backup-file-git nil "gc" "--aggressive")))
+
 (provide 'backup-file)
