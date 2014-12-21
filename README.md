@@ -23,7 +23,7 @@ lines of this, e.g. in a cronjob
        git branch -D temp_remove_old_history
        git prune --progress
        git gc --aggressive
-    endif
+    fi
 
 You can also now also do this from elisp using:
 
