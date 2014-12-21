@@ -25,3 +25,6 @@ lines of this, e.g. in a cronjob
        git gc --aggressive
     endif
 
+Example:
+
+https://www.youtube.com/watch?v=NwdRFmVhEIo&feature=youtu.be
