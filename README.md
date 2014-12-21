@@ -15,7 +15,7 @@ a good idea to have a cronjob or something do something along the
 lines of this, e.g. in a cronjob
 
     cd ~/.backups
-    commit=$(git log --since "`date --date=\"1 week ago\"`" | grep commit | tail -n 1 | cut -d' ' -f2)
+    commit=$(git log --since="1 week ago" --reverse --pretty=%h | head -n1)
     if [ -n "$commit" ]; then
        git checkout --orphan temp_remove_old_history "$commit"
        git commit -m "Truncated history" --allow-empty
@@ -24,6 +24,10 @@ lines of this, e.g. in a cronjob
        git prune --progress
        git gc --aggressive
     endif
+
+You can also now also do this from elisp using:
+
+(backup-file-truncate-history)
 
 Example:
 
