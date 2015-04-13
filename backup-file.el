@@ -144,6 +144,12 @@
         (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
         (cd old)))))
 
+(defun backup-file-switch-to-log ()
+  (interactive)
+  (let ((buf (get-buffer backup-file-buffer-name)))
+    (if buf
+        (switch-to-buffer buf))))
+
 (defun backup-file-git-log-sentinel (process state)
   (when (string= state "finished\n")
     (let ((buf (process-buffer process)))
