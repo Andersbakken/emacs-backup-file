@@ -193,25 +193,25 @@
 
   (let* ((old default-directory)
          (git-filepath (backup-file-file-path file)))
-    (unless (file-exists-p git-filepath)
-      (error "Backup-file: No backups for \"%s\"" file))
-    (if (get-buffer backup-file-buffer-name)
-        (kill-buffer backup-file-buffer-name))
-    (switch-to-buffer (get-buffer-create backup-file-buffer-name))
-    (cd backup-file-location)
-    (let ((proc (start-process "git backup-file"
-                               (current-buffer)
-                               "git"
-                               (backup-file/--git-dir)
-                               "--no-pager"
-                               "log"
-                               "--pretty=format:%h%ar"
-                               "--" git-filepath)))
-      (cd old)
-      (set-process-query-on-exit-flag proc nil)
-      ;; (set-process-filter proc (car async))
-      (setq backup-file-last-file file)
-      (set-process-sentinel proc (function backup-file-git-log-sentinel)))))
+    (if (not (file-exists-p git-filepath))
+        (message "Backup-file: No backups for \"%s\"" file)
+      (if (get-buffer backup-file-buffer-name)
+          (kill-buffer backup-file-buffer-name))
+      (switch-to-buffer (get-buffer-create backup-file-buffer-name))
+      (cd backup-file-location)
+      (let ((proc (start-process "git backup-file"
+                                 (current-buffer)
+                                 "git"
+                                 (backup-file/--git-dir)
+                                 "--no-pager"
+                                 "log"
+                                 "--pretty=format:%h%ar"
+                                 "--" git-filepath)))
+        (cd old)
+        (set-process-query-on-exit-flag proc nil)
+        ;; (set-process-filter proc (car async))
+        (setq backup-file-last-file file)
+        (set-process-sentinel proc (function backup-file-git-log-sentinel))))))
 
 (defun backup-file-redisplay ()
   (setq buffer-read-only nil)
