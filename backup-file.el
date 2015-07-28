@@ -334,7 +334,7 @@
             (kill-buffer backup-file-last-temp-buffer))
         (switch-to-buffer (get-buffer-create bufname))
         (setq backup-file-last-temp-buffer (current-buffer))
-        (backup-file-git nil "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
+        (backup-file-git (current-buffer) "show" (concat (car (backup-file-data-nth index)) ":." backup-file-last-file))
         (setq buffer-file-name backup-file-last-file)
         (set-auto-mode)
         (setq buffer-file-name nil)
