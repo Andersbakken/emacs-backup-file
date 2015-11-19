@@ -55,28 +55,28 @@
 
 ;; (add-hook 'after-save-hook 'backup-file)
 
-(defvar backup-file-mode-map nil)
-(setq backup-file-mode-map (make-sparse-keymap))
-(set-keymap-parent backup-file-mode-map diff-mode-map)
+(defvar backup-file-minor-mode-map nil)
+(setq backup-file-minor-mode-map (make-sparse-keymap))
+(set-keymap-parent backup-file-minor-mode-map diff-mode-map)
 
-(define-key backup-file-mode-map (kbd "q") (function bury-buffer))
-(define-key backup-file-mode-map (kbd "Q") (function backup-file-kill-current-buffer))
-(define-key backup-file-mode-map (kbd "=") (function backup-file-show-diff))
-(define-key backup-file-mode-map (kbd ".") (function backup-file-show-diff-inline-prev))
-(define-key backup-file-mode-map (kbd "k") (function backup-file-show-diff-inline-prev))
-(define-key backup-file-mode-map (kbd "p") (function backup-file-show-diff-inline-prev))
-(define-key backup-file-mode-map (kbd ",") (function backup-file-show-diff-inline-next))
-(define-key backup-file-mode-map (kbd "j") (function backup-file-show-diff-inline-next))
-(define-key backup-file-mode-map (kbd "n") (function backup-file-show-diff-inline-next))
-(define-key backup-file-mode-map (kbd "d") (function backup-file-show-diff-inline))
-(define-key backup-file-mode-map (kbd "+") (function backup-file-show-diff-inline))
-(define-key backup-file-mode-map (kbd "o") (function backup-file-select-revision-at-point))
-(define-key backup-file-mode-map (kbd "g") (function bury-buffer))
-(define-key backup-file-mode-map (kbd "f") (function backup-file-select-revision-at-point))
-(define-key backup-file-mode-map (kbd "r") (function backup-file-revert-to-revision-at-point))
-(define-key backup-file-mode-map (kbd "D") (function backup-file-toggle-showing-inline-diffs))
-(define-key backup-file-mode-map (kbd "RET") (function backup-file-select-revision-at-point-or-diff-goto-source))
-(define-key backup-file-mode-map (kbd "ENTER") (function backup-file-select-revision-at-point-or-diff-goto-source))
+(define-key backup-file-minor-mode-map (kbd "q") (function bury-buffer))
+(define-key backup-file-minor-mode-map (kbd "Q") (function backup-file-kill-current-buffer))
+(define-key backup-file-minor-mode-map (kbd "=") (function backup-file-show-diff))
+(define-key backup-file-minor-mode-map (kbd ".") (function backup-file-show-diff-inline-prev))
+(define-key backup-file-minor-mode-map (kbd "k") (function backup-file-show-diff-inline-prev))
+(define-key backup-file-minor-mode-map (kbd "p") (function backup-file-show-diff-inline-prev))
+(define-key backup-file-minor-mode-map (kbd ",") (function backup-file-show-diff-inline-next))
+(define-key backup-file-minor-mode-map (kbd "j") (function backup-file-show-diff-inline-next))
+(define-key backup-file-minor-mode-map (kbd "n") (function backup-file-show-diff-inline-next))
+(define-key backup-file-minor-mode-map (kbd "d") (function backup-file-show-diff-inline))
+(define-key backup-file-minor-mode-map (kbd "+") (function backup-file-show-diff-inline))
+(define-key backup-file-minor-mode-map (kbd "o") (function backup-file-select-revision-at-point))
+(define-key backup-file-minor-mode-map (kbd "g") (function bury-buffer))
+(define-key backup-file-minor-mode-map (kbd "f") (function backup-file-select-revision-at-point))
+(define-key backup-file-minor-mode-map (kbd "r") (function backup-file-revert-to-revision-at-point))
+(define-key backup-file-minor-mode-map (kbd "D") (function backup-file-toggle-showing-inline-diffs))
+(define-key backup-file-minor-mode-map (kbd "RET") (function backup-file-select-revision-at-point-or-diff-goto-source))
+(define-key backup-file-minor-mode-map (kbd "ENTER") (function backup-file-select-revision-at-point-or-diff-goto-source))
 
 (defun backup-file/.git ()
   (concat (expand-file-name backup-file-location) "/.git"))
@@ -97,10 +97,10 @@
   (backup-file-buffer-local-buffer-local-set-key (kbd "p") (function backup-file-prev))
   (backup-file-buffer-local-buffer-local-set-key (kbd "Q") (function backup-file-kill-current-buffer)))
 
-(define-derived-mode backup-file-mode text-mode
+(define-derived-mode backup-file-minor-mode text-mode
   (setq font-lock-defaults diff-font-lock-defaults)
   (setq mode-name "backup-file")
-  (use-local-map backup-file-mode-map)
+  (use-local-map backup-file-minor-mode-map)
   (run-hooks 'backup-file-mode-hook))
 
 (defun backup-file-replace-regexp (rx to)
@@ -110,7 +110,7 @@
 
 (defun backup-file-git (output &rest arguments)
   (let ((old default-directory)
-        (outbuf (or output (and backup-file-log (get-buffer-create "*Backup-file-log*")))))
+        (outbuf (or output (and backup-file-mode (get-buffer-create "*Backup-file-log*")))))
     (cd backup-file-location)
     (unless output
       (with-current-buffer outbuf
@@ -173,7 +173,7 @@
                 (forward-line)
               (goto-char (point-max))))
 
-          (backup-file-mode)
+          (backup-file-minor-mode)
           (backup-file-redisplay)
           (setq buffer-read-only t))))))
 
@@ -181,7 +181,7 @@
   (let ((nam (buffer-file-name buffer)))
     (and nam (file-truename nam))))
 
-(defun backup-file-log (&optional file)
+(defun backup-file-mode (&optional file)
   (interactive)
   (cond ((bufferp file) (setq file (backup-file-buffer-file-name file)))
         ((stringp file) (setq file (file-truename file)))
@@ -211,6 +211,7 @@
         ;; (set-process-filter proc (car async))
         (setq backup-file-last-file file)
         (set-process-sentinel proc (function backup-file-git-log-sentinel))))))
+(defalias 'backup-file-log 'backup-file-mode)
 
 (defun backup-file-redisplay ()
   (setq buffer-read-only nil)
@@ -344,7 +345,7 @@
 (defun backup-file-update ()
   (interactive)
   (when backup-file-last-file
-    (backup-file-log backup-file-last-file)))
+    (backup-file-mode backup-file-last-file)))
 
 (defun backup-file-revert-to-revision-at-point ()
   (interactive)
