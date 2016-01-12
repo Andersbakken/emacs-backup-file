@@ -110,7 +110,7 @@
 
 (defun backup-file-git (output &rest arguments)
   (let ((old default-directory)
-        (outbuf (or output (and backup-file-mode (get-buffer-create "*Backup-file-log*")))))
+        (outbuf (or output (get-buffer-create "*Backup-file-log*"))))
     (cd backup-file-location)
     (unless output
       (with-current-buffer outbuf
