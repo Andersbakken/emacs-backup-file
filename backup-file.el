@@ -129,8 +129,15 @@
     (mkdir (expand-file-name backup-file-location) t)
     (backup-file-git nil "init")))
 
+(defvar backup-file-excludes (list "^/tmp/" "/recentf$"))
 (defun backup-file-file-path (file)
-  (and file (concat (expand-file-name backup-file-location) (replace-regexp-in-string "/\.git/" "/dot.git/" (file-truename file)))))
+  (let ((exclude backup-file-excludes))
+    (while exclude
+      (if (string-match (car exclude) file)
+          (setq file nil
+                exclude nil)
+        (setq exclude (cdr exclude))))
+    (and file (concat (expand-file-name backup-file-location) (replace-regexp-in-string "/\.git/" "/dot.git/" (file-truename file))))))
 
 (defun backup-file ()
   (interactive)
