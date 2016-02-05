@@ -129,7 +129,7 @@
     (mkdir (expand-file-name backup-file-location) t)
     (backup-file-git nil "init")))
 
-(defvar backup-file-excludes (list "^/tmp/" "/recentf$"))
+(defvar backup-file-excludes (list "/recentf$"))
 (defun backup-file-file-path (file)
   (let ((exclude backup-file-excludes))
     (while exclude
