@@ -145,16 +145,19 @@
     (when path
       (backup-file-ensure-depot)
       (mkdir (file-name-directory path) t)
-      (save-restriction
-        (widen)
-        (write-region (point-min) (point-max) path))
-      (let ((old default-directory))
-        ;; (setq default-directory backup-file-location)
-        (cd backup-file-location)
-        (call-process "git" nil nil nil "add" path)
-        ;; (setq default-directory old)
-        (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
-        (cd old)))))
+      (condition-case nil
+          (save-restriction
+            (widen)
+            (write-region (point-min) (point-max) path))
+          (let ((old default-directory))
+            ;; (setq default-directory backup-file-location)
+            (cd backup-file-location)
+            (call-process "git" nil nil nil "add" path)
+            ;; (setq default-directory old)
+            (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
+            (cd old))
+        (error
+         (message "backup-file: Some error happened"))))))
 
 (defun backup-file-switch-to-log ()
   (interactive)
