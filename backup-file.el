@@ -146,10 +146,10 @@
       (backup-file-ensure-depot)
       (mkdir (file-name-directory path) t)
       (condition-case nil
-          (save-restriction
-            (widen)
-            (write-region (point-min) (point-max) path))
           (let ((old default-directory))
+            (save-restriction
+              (widen)
+              (write-region (point-min) (point-max) path))
             ;; (setq default-directory backup-file-location)
             (cd backup-file-location)
             (call-process "git" nil nil nil "add" path)
