@@ -140,7 +140,9 @@
     (and file (concat (expand-file-name backup-file-location) (replace-regexp-in-string "/\.git/" "/dot.git/" (file-truename file))))))
 
 
-(defun backup-file--remove-files (path)
+(defun backup-file-clear-path (path)
+  (when (file-directory-p path)
+    (delete-directory path t))
   (while (and (not (string= path "/"))
               (> (length path) 0))
     (when (string-match "^.*\\(/[^/]+\\)$" path)
@@ -153,7 +155,7 @@
   (let* ((path (backup-file-file-path (buffer-file-name))))
     (when path
       (backup-file-ensure-depot)
-      (backup-file--remove-files path)
+      (backup-file-clear-path path)
       (mkdir (file-name-directory path) t)
       (condition-case nil
           (let ((old default-directory))
