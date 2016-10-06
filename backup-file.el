@@ -34,6 +34,8 @@
   :type 'boolean)
 (defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :type 'boolean)
 
+(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (exexecutable-find \"git\")" :type 'string)
+
 (defvar backup-file-buffer-local-mode nil)
 (make-variable-buffer-local 'backup-file-buffer-local-mode)
 
@@ -117,7 +119,7 @@
         (goto-char (point-max))
         (insert "git " (combine-and-quote-strings arguments) " =>\n")))
     (message default-directory)
-    (apply #'call-process "git"
+    (apply #'call-process backup-file-git-executable
            nil
            outbuf
            nil
@@ -164,9 +166,9 @@
               (write-region (point-min) (point-max) path))
             ;; (setq default-directory backup-file-location)
             (cd backup-file-location)
-            (call-process "git" nil nil nil "add" path)
+            (call-process backup-file-git-executable nil nil nil "add" path)
             ;; (setq default-directory old)
-            (start-process "git-backup-file" nil "git" (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
+            (start-process "git-backup-file" nil backup-file-git-executable (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
             (cd old))
         (error
          (message "backup-file: Some error happened"))))))
@@ -227,7 +229,7 @@
         (cd backup-file-location)
         (let ((proc (start-process "git backup-file"
                                    (current-buffer)
-                                   "git"
+                                   backup-file-git-executable
                                    (backup-file/--git-dir)
                                    "--no-pager"
                                    "log"
