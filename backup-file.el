@@ -190,9 +190,8 @@
           (setq backup-file-showing-inline-diffs nil)
           (setq backup-file-last-data (list))
           (while (not (eobp))
-            (push (cons (buffer-substring (point-at-bol) (+ (point-at-bol) 7))
-                        (buffer-substring (+ (point-at-bol) 7) (point-at-eol)))
-                  backup-file-last-data)
+            (when (looking-at "^\\([0-9A-Fa-f]+\\) \\(.*\\)$")
+              (push (cons (match-string 1) (match-string 2)) backup-file-last-data))
             (if (< (point-at-eol) (point-max))
                 (forward-line)
               (goto-char (point-max))))
@@ -234,7 +233,7 @@
                                    "--no-pager"
                                    "log"
                                    (format "--max-count=%d" max)
-                                   "--pretty=format:%h%ar"
+                                   "--pretty=format:%h %ar"
                                    "--" git-filepath)))
           (cd old)
           (set-process-query-on-exit-flag proc nil)
