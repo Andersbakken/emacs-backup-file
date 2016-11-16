@@ -34,7 +34,7 @@
   :type 'boolean)
 (defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :type 'boolean)
 
-(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (exexecutable-find \"git\")" :type 'string)
+(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :type 'string)
 
 (defvar backup-file-buffer-local-mode nil)
 (make-variable-buffer-local 'backup-file-buffer-local-mode)
@@ -152,26 +152,30 @@
       (when (file-regular-p path)
         (delete-file path)))))
 
+(defvar backup-file-git-commit-locked nil)
+(defun backup-file-git-commit-sentinel (process state)
+  (when (string= state "finished\n")
+    (setq backup-file-git-commit-locked nil)))
+
 (defun backup-file ()
   (interactive)
-  (let* ((path (backup-file-file-path (buffer-file-name))))
-    (when path
-      (backup-file-ensure-depot)
-      (backup-file-clear-path path)
-      (mkdir (file-name-directory path) t)
-      (condition-case nil
-          (let ((old default-directory))
-            (save-restriction
-              (widen)
-              (write-region (point-min) (point-max) path))
-            ;; (setq default-directory backup-file-location)
-            (cd backup-file-location)
-            (call-process backup-file-git-executable nil nil nil "add" path)
-            ;; (setq default-directory old)
-            (start-process "git-backup-file" nil backup-file-git-executable (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))
-            (cd old))
-        (error
-         (message "backup-file: Some error happened"))))))
+  (unless backup-file-git-commit-locked
+    (let* ((path (backup-file-file-path (buffer-file-name))))
+      (when path
+        (backup-file-ensure-depot)
+        (backup-file-clear-path path)
+        (mkdir (file-name-directory path) t)
+        (condition-case nil
+            (progn
+              (save-restriction
+                (widen)
+                (write-region (point-min) (point-max) path))
+              (call-process backup-file-git-executable nil nil nil (backup-file/--git-dir) "add" path)
+              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
+                (setq backup-file-git-commit-locked t)
+                (set-process-sentinel proc (function backup-file-git-commit-sentinel))))
+          (error
+           (message "backup-file: Some error happened")))))))
 
 (defun backup-file-switch-to-log ()
   (interactive)
