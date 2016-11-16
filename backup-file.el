@@ -83,9 +83,6 @@
 (defun backup-file/.git ()
   (concat (expand-file-name backup-file-location) "/.git"))
 
-(defun backup-file/--git-dir ()
-  (concat "--git-dir=" (backup-file/.git)))
-
 (defun backup-file-bury ()
   (interactive)
   (if (> (length (window-list)) 1)
@@ -170,8 +167,8 @@
               (save-restriction
                 (widen)
                 (write-region (point-min) (point-max) path))
-              (call-process backup-file-git-executable nil nil nil (backup-file/--git-dir) "add" path)
-              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable (backup-file/--git-dir) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
+              (call-process backup-file-git-executable nil nil nil "-C" (expand-file-name backup-file-location) "add" path)
+              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (expand-file-name backup-file-location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
                 (setq backup-file-git-commit-locked t)
                 (set-process-sentinel proc (function backup-file-git-commit-sentinel))))
           (error
@@ -204,6 +201,15 @@
           (backup-file-redisplay)
           (setq buffer-read-only t))))))
 
+(defun backup-file-git-log-filter (process string)
+  (let ((buf (process-buffer process)))
+    (when buf
+      (with-current-buffer buf
+        (setq buffer-read-only nil)
+        (goto-char (point-max))
+        (insert string)
+        (setq buffer-read-only t)))))
+
 (defun backup-file-buffer-file-name (&optional buffer)
   (let ((nam (buffer-file-name buffer)))
     (and nam (file-truename nam))))
@@ -222,28 +228,30 @@
     (unless (stringp file)
       (error "Backup-file needs a file"))
 
-    (let* ((old default-directory)
-           (git-filepath (backup-file-file-path file)))
+    (let ((git-filepath (backup-file-file-path file)))
       (if (not (file-exists-p git-filepath))
           (message "Backup-file: No backups for \"%s\"" file)
         (when (get-buffer backup-file-buffer-name)
           (kill-buffer backup-file-buffer-name))
         (switch-to-buffer (get-buffer-create backup-file-buffer-name))
-        (cd backup-file-location)
+        (setq buffer-read-only t)
         (let ((proc (start-process "git backup-file"
                                    (current-buffer)
                                    backup-file-git-executable
-                                   (backup-file/--git-dir)
+                                   "-C"
+                                   (expand-file-name backup-file-location)
                                    "--no-pager"
                                    "log"
                                    (format "--max-count=%d" max)
                                    "--pretty=format:%h %ar"
                                    "--" git-filepath)))
-          (cd old)
+
           (set-process-query-on-exit-flag proc nil)
           ;; (set-process-filter proc (car async))
           (setq backup-file-last-file file)
+          (set-process-filter proc (function backup-file-git-log-filter))
           (set-process-sentinel proc (function backup-file-git-log-sentinel)))))))
+
 (defalias 'backup-file-log 'backup-file-mode)
 
 (defun backup-file-redisplay ()
