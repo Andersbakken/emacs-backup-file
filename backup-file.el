@@ -151,7 +151,8 @@
 
 (defvar backup-file-git-commit-locked nil)
 (defun backup-file-git-commit-sentinel (process state)
-  (when (string= state "finished\n")
+  (when (or (string-match "^finished\\>" state)
+            (string-match "^exited\\>" state))
     (setq backup-file-git-commit-locked nil)))
 
 (defun backup-file ()
