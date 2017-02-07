@@ -157,7 +157,7 @@
 
 (defun backup-file ()
   (interactive)
-  (unless backup-file-git-commit-locked
+  (unless (and nil backup-file-git-commit-locked) ;;; the backup-file-git-commit-locked stuff doesn't work correctly. Disable for now.
     (let* ((path (backup-file-file-path (buffer-file-name))))
       (when path
         (backup-file-ensure-depot)
@@ -170,8 +170,9 @@
                 (write-region (point-min) (point-max) path))
               (call-process backup-file-git-executable nil nil nil "-C" (expand-file-name backup-file-location) "add" path)
               (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (expand-file-name backup-file-location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
-                (setq backup-file-git-commit-locked t)
-                (set-process-sentinel proc (function backup-file-git-commit-sentinel))))
+                (when proc
+                  (setq backup-file-git-commit-locked t)
+                  (set-process-sentinel proc (function backup-file-git-commit-sentinel)))))
           (error
            (message "backup-file: Some error happened")))))))
 
