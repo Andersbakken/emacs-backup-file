@@ -189,7 +189,6 @@
         (with-current-buffer buf
           (setq buffer-read-only nil)
           (goto-char (point-min))
-          (goto-char(point-min))
           (setq backup-file-showing-inline-diffs nil)
           (setq backup-file-last-data (list))
           (while (not (eobp))
