@@ -365,7 +365,7 @@
       (set-auto-mode)
       (setq buffer-file-name nil)
       (goto-char (point-min))
-      (font-lock-fontify-buffer)
+      (font-lock-ensure)
       (backup-file-apply-show-revision-map)
       (setq buffer-read-only t))))
 
