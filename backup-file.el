@@ -241,7 +241,7 @@
                                  (expand-file-name backup-file-location)
                                  "--no-pager"
                                  "log"
-                                 (concat "--since=" (or since "1 week ago"))
+                                 (concat "--since=" (or since "2 months ago"))
                                  "--pretty=format:%h %ar"
                                  "--" git-filepath)))
 
