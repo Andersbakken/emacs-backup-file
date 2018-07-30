@@ -167,7 +167,7 @@
             (progn
               (save-restriction
                 (widen)
-                (write-region (point-min) (point-max) path))
+                (write-region (point-min) (point-max) path nil 'nomsg))
               (call-process backup-file-git-executable nil nil nil "-C" (expand-file-name backup-file-location) "add" path)
               (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (expand-file-name backup-file-location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
                 (when proc
