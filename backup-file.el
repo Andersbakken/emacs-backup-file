@@ -267,7 +267,7 @@
         (backup-file-git (current-buffer) "show" (car data))
         (setq replace t)
         (insert "\n"))
-      (incf i)
+      (cl-incf i)
       (goto-char (point-min)))
     (when (> (point-max) (point-min))
       (goto-char (point-max))
