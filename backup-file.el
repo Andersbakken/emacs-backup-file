@@ -33,8 +33,8 @@
   :group 'backup-file
   :type 'boolean)
 (defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :type 'boolean)
-
-(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :type 'string)
+(defcustom backup-file-default-since "2 months ago" "Default --since passed to git" :type 'string :safe 'stringp)
+(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :type 'string :safe 'stringp)
 
 (defvar backup-file-buffer-local-mode nil)
 (make-variable-buffer-local 'backup-file-buffer-local-mode)
@@ -241,7 +241,7 @@
                                  (expand-file-name backup-file-location)
                                  "--no-pager"
                                  "log"
-                                 (concat "--since=" (or since "2 months ago"))
+                                 (concat "--since=" (or since backup-file-default-since))
                                  "--pretty=format:%h %ar"
                                  "--" git-filepath)))
 
