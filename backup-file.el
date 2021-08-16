@@ -42,11 +42,11 @@
 (defun backup-file-buffer-local-mode-keymap (mode-sym)
   (symbol-value (intern (concat (symbol-name mode-sym) "-map"))))
 
-(cl-defun backup-file-buffer-local-buffer-local-set-key (key action)
+(defun backup-file-buffer-local-buffer-local-set-key (key action)
   (if backup-file-buffer-local-mode
     (define-key (backup-file-buffer-local-mode-keymap backup-file-buffer-local-mode)
       key action)
-    (let* ((mode-name-loc (cl-gensym "-blm")))
+    (let ((mode-name-loc (cl-gensym "-blm")))
       (eval `(define-minor-mode ,mode-name-loc nil nil nil (make-sparse-keymap)))
       (setq backup-file-buffer-local-mode mode-name-loc)
       (funcall mode-name-loc 1)
