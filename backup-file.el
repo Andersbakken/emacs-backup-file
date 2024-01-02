@@ -194,7 +194,7 @@
           (while (not (eobp))
             (when (looking-at "^\\([0-9A-Fa-f]+\\) \\(.*\\)$")
               (push (cons (match-string 1) (match-string 2)) backup-file-last-data))
-            (if (< (point-at-eol) (point-max))
+            (if (< (line-end-position) (point-max))
                 (forward-line)
               (goto-char (point-max))))
 
@@ -292,7 +292,7 @@
   (save-excursion
     (when pos
       (goto-char pos))
-    (goto-char (point-at-bol))
+    (goto-char (line-beginning-position))
     (when (looking-at "Revision #\\([0-9]+\\) -- ")
       (string-to-number (match-string 1)))))
 
@@ -320,7 +320,7 @@
 
 (defun backup-file-show-diff-inline (&optional pos)
   (interactive)
-  (let ((line (buffer-substring (point-at-bol) (point-at-eol)))
+  (let ((line (buffer-substring (line-beginning-position) (line-end-position)))
         (index (backup-file-data-index)))
     (if (eq index backup-file-showing-inline-diffs)
         (setq backup-file-showing-inline-diffs nil)
@@ -425,7 +425,7 @@
                       (backup-file-git (current-buffer) "log" "--reverse" (concat "--since=" (or date "1 week ago")) "--pretty=%h")
                       (and (> (point-max) (point-min))
                            (goto-char (point-min))
-                           (buffer-substring-no-properties (point-min) (point-at-eol))))
+                           (buffer-substring-no-properties (point-min) (line-end-position))))
                     (with-temp-buffer
                       (backup-file-git (current-buffer) "rev-parse" "--short" "HEAD")
                       (buffer-substring-no-properties (point-min) (1- (point-max)))))))
