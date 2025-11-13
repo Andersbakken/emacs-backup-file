@@ -34,7 +34,7 @@
   :type 'boolean)
 (defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :group 'backup-file :type 'boolean)
 (defcustom backup-file-default-since "2 months ago" "Default --since passed to git" :group 'backup-file :type 'string :safe 'stringp)
-(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :type 'string :safe 'stringp)
+(defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :group 'backup-file :type 'string :safe 'stringp)
 (defcustom backup-file-excludes (list "/recentf$")
   "List of regexp patterns for files to exclude from backup.
 Files matching any of these patterns will not be backed up."
