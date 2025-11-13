@@ -32,9 +32,14 @@
 (defcustom backup-file-reuse-temp-buffers t "Whether to reuse temp buffers for backup-file"
   :group 'backup-file
   :type 'boolean)
-(defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :type 'boolean)
-(defcustom backup-file-default-since "2 months ago" "Default --since passed to git" :type 'string :safe 'stringp)
+(defcustom backup-file-log t "Whether to log commands to a temp buffer called *Backup-file-log*" :group 'backup-file :type 'boolean)
+(defcustom backup-file-default-since "2 months ago" "Default --since passed to git" :group 'backup-file :type 'string :safe 'stringp)
 (defcustom backup-file-git-executable (executable-find "git") "git-executable to use (instead of (executable-find \"git\")" :type 'string :safe 'stringp)
+(defcustom backup-file-excludes (list "/recentf$")
+  "List of regexp patterns for files to exclude from backup.
+Files matching any of these patterns will not be backed up."
+  :group 'backup-file
+  :type '(repeat regexp))
 
 (defvar backup-file-buffer-local-mode nil)
 (make-variable-buffer-local 'backup-file-buffer-local-mode)
@@ -87,7 +92,7 @@
   (interactive)
   (if (> (length (window-list)) 1)
       (delete-window)
-    (backup-file-bury))
+    (bury-buffer))
   (switch-to-buffer backup-file-buffer-name))
 
 (defun backup-file-apply-show-revision-map ()
@@ -115,7 +120,6 @@
       (with-current-buffer outbuf
         (goto-char (point-max))
         (insert "git " (combine-and-quote-strings arguments) " =>\n")))
-    (message default-directory)
     (apply #'call-process backup-file-git-executable
            nil
            outbuf
@@ -128,16 +132,13 @@
     (mkdir (expand-file-name backup-file-location) t)
     (backup-file-git nil "init")))
 
-(defvar backup-file-excludes (list "/recentf$"))
 (defun backup-file-file-path (file)
-  (let ((exclude backup-file-excludes))
-    (while exclude
-      (if (string-match (car exclude) file)
-          (setq file nil
-                exclude nil)
-        (setq exclude (cdr exclude))))
-    (and file (concat (expand-file-name backup-file-location) (replace-regexp-in-string "/\.git/" "/dot.git/" (file-truename file))))))
-
+  (let ((truename (file-truename file)))
+    (unless (or (file-in-directory-p truename (expand-file-name backup-file-location))
+                (cl-some (lambda (pattern) (string-match pattern file))
+                         backup-file-excludes))
+      (concat (expand-file-name backup-file-location)
+              (replace-regexp-in-string "/\.git/" "/dot.git/" truename)))))
 
 (defun backup-file-clear-path (path)
   (when (file-directory-p path)
@@ -332,7 +333,7 @@
 (defun backup-file-show-diff-inline-jump (offset)
   (when (integerp backup-file-showing-inline-diffs)
     (let ((idx (+ backup-file-showing-inline-diffs offset)))
-      (when (and (>= idx 0) (< idx (length backup-file-last-data)))
+      (when (and (>= idx 1) (<= idx (length backup-file-last-data)))
         (setq backup-file-showing-inline-diffs idx)
         (backup-file-redisplay)
         (when (search-forward (format "Revision #%d -- " idx))
@@ -407,7 +408,7 @@
   (when (and (string-match "\\*\\(.*\\)#\\([0-9]+\\)\\*" (buffer-name))
              (string= (match-string 1 (buffer-name)) backup-file-last-file))
     (let ((idx (+ (string-to-number (match-string 2 (buffer-name))) offset)))
-      (when (and (>= idx 0) (< idx (length backup-file-last-data)))
+      (when (and (>= idx 1) (<= idx (length backup-file-last-data)))
         (backup-file-show-revision idx)))))
 
 (defun backup-file-next ()
