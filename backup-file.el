@@ -60,6 +60,12 @@ Files matching any of these patterns will not be backed up."
 
 (defcustom backup-file-location (expand-file-name "~/.backups") "Where to store backup repo" :group 'backup-file :type 'string)
 
+(defvar backup-file--expanded-location nil)
+(defun backup-file--location ()
+  "Return the expanded backup-file-location, caching the result."
+  (or backup-file--expanded-location
+      (setq backup-file--expanded-location (expand-file-name backup-file-location))))
+
 ;; (add-hook 'after-save-hook 'backup-file)
 
 (defvar backup-file-minor-mode-map nil)
@@ -86,7 +92,7 @@ Files matching any of these patterns will not be backed up."
 (define-key backup-file-minor-mode-map (kbd "ENTER") (function backup-file-select-revision-at-point-or-diff-goto-source))
 
 (defun backup-file/.git ()
-  (concat (expand-file-name backup-file-location) "/.git"))
+  (concat (backup-file--location) "/.git"))
 
 (defun backup-file-bury ()
   (interactive)
@@ -113,9 +119,8 @@ Files matching any of these patterns will not be backed up."
       (replace-match to nil nil))))
 
 (defun backup-file-git (output &rest arguments)
-  (let ((old default-directory)
+  (let ((default-directory (backup-file--location))
         (outbuf (or output (get-buffer-create "*Backup-file-log*"))))
-    (cd backup-file-location)
     (unless output
       (with-current-buffer outbuf
         (goto-char (point-max))
@@ -124,20 +129,20 @@ Files matching any of these patterns will not be backed up."
            nil
            outbuf
            nil
-           arguments)
-    (cd old)))
+           arguments)))
 
 (defun backup-file-ensure-depot ()
   (when (not (file-directory-p (backup-file/.git)))
-    (mkdir (expand-file-name backup-file-location) t)
+    (mkdir (backup-file--location) t)
     (backup-file-git nil "init")))
 
 (defun backup-file-file-path (file)
-  (let ((truename (file-truename file)))
-    (unless (or (file-in-directory-p truename (expand-file-name backup-file-location))
-                (cl-some (lambda (pattern) (string-match pattern file))
+  (let ((truename (file-truename file))
+        (location (backup-file--location)))
+    (unless (or (file-in-directory-p truename location)
+                (cl-some (lambda (pattern) (string-match pattern truename))
                          backup-file-excludes))
-      (concat (expand-file-name backup-file-location)
+      (concat location
               (replace-regexp-in-string "/\.git/" "/dot.git/" truename)))))
 
 (defun backup-file-clear-path (path)
@@ -169,8 +174,8 @@ Files matching any of these patterns will not be backed up."
               (save-restriction
                 (widen)
                 (write-region (point-min) (point-max) path nil 'nomsg))
-              (call-process backup-file-git-executable nil nil nil "-C" (expand-file-name backup-file-location) "add" path)
-              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (expand-file-name backup-file-location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
+              (call-process backup-file-git-executable nil nil nil "-C" (backup-file--location) "add" path)
+              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (backup-file--location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
                 (when proc
                   (setq backup-file-git-commit-locked t)
                   (set-process-sentinel proc (function backup-file-git-commit-sentinel)))))
@@ -231,15 +236,17 @@ Files matching any of these patterns will not be backed up."
   (let ((git-filepath (backup-file-file-path file)))
     (if (not (file-exists-p git-filepath))
         (message "Backup-file: No backups for \"%s\"" file)
-      (when (get-buffer backup-file-buffer-name)
-        (kill-buffer backup-file-buffer-name))
-      (switch-to-buffer (get-buffer-create backup-file-buffer-name))
-      (setq buffer-read-only t)
+      (let ((buf (get-buffer-create backup-file-buffer-name)))
+        (with-current-buffer buf
+          (let ((inhibit-read-only t))
+            (erase-buffer)))
+        (switch-to-buffer buf)
+        (setq buffer-read-only t))
       (let ((proc (start-process "git backup-file"
                                  (current-buffer)
                                  backup-file-git-executable
                                  "-C"
-                                 (expand-file-name backup-file-location)
+                                 (backup-file--location)
                                  "--no-pager"
                                  "log"
                                  (concat "--since=" (or since backup-file-default-since))
@@ -255,12 +262,12 @@ Files matching any of these patterns will not be backed up."
 (defalias 'backup-file-log 'backup-file-mode)
 
 (defun backup-file-redisplay ()
-  (setq buffer-read-only nil)
-  (erase-buffer)
-  (let ((i 1)
+  (let ((inhibit-read-only t)
+        (i 1)
         (replace)
         (filename (file-name-nondirectory backup-file-last-file))
         (revformat (format "%%0%dd" (length (int-to-string (length backup-file-last-data))))))
+    (erase-buffer)
     (dolist (data backup-file-last-data)
       (insert "Revision #" (format revformat i) " -- " (car data) " -- " filename " -- " (cdr data) "\n")
       (when (cond ((integerp backup-file-showing-inline-diffs) (= backup-file-showing-inline-diffs i))
@@ -268,16 +275,14 @@ Files matching any of these patterns will not be backed up."
         (backup-file-git (current-buffer) "show" (car data))
         (setq replace t)
         (insert "\n"))
-      (cl-incf i)
-      (goto-char (point-min)))
+      (cl-incf i))
     (when (> (point-max) (point-min))
       (goto-char (point-max))
-      (backward-delete-char 1)
-      (goto-char (point-min)))
+      (backward-delete-char 1))
+    (goto-char (point-min))
     (when replace
       (backup-file-replace-regexp "^--- a/" "--- /")
-      (backup-file-replace-regexp "^+++ b/" "+++ /")))
-  (setq buffer-read-only t))
+      (backup-file-replace-regexp "^+++ b/" "+++ /"))))
 
 (defun backup-file-toggle-showing-inline-diffs (&optional arg)
   (interactive)
