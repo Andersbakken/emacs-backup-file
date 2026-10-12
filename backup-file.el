@@ -156,31 +156,78 @@ Files matching any of these patterns will not be backed up."
         (delete-file path)))))
 
 (defvar backup-file-git-commit-locked nil)
-(defun backup-file-git-commit-sentinel (process state)
-  (when (or (string-match "^finished\\>" state)
-            (string-match "^exited\\>" state))
-    (setq backup-file-git-commit-locked nil)))
+(defvar backup-file--queue nil)
+
+(defun backup-file--finish-job (message-text)
+  (setq backup-file-git-commit-locked nil)
+  (when message-text
+    (message "backup-file: %s" message-text))
+  (backup-file--start-next)
+  nil)
+
+(defun backup-file--commit-sentinel (process _state)
+  (when (memq (process-status process) '(exit signal))
+    (backup-file--finish-job nil)))
+
+(defun backup-file--add-sentinel (process _state)
+  (when (memq (process-status process) '(exit signal))
+    (let ((job (process-get process 'backup-file-job))
+          (status (process-exit-status process)))
+      (if (and (eq (process-status process) 'exit)
+               (zerop status))
+          (condition-case err
+              (let ((commit
+                     (start-process
+                      "git-backup-file" nil backup-file-git-executable
+                      "-C" (backup-file--location) "commit" "-m"
+                      (format "Update %s from emacs" (nth 3 job)))))
+                (set-process-query-on-exit-flag commit nil)
+                (set-process-sentinel commit #'backup-file--commit-sentinel))
+            (error
+             (backup-file--finish-job (error-message-string err))))
+        (backup-file--finish-job
+         (format "git add failed (exit %d)" status))))))
+
+(defun backup-file--start-next ()
+  "Write and asynchronously commit the next queued backup snapshot."
+  (unless backup-file-git-commit-locked
+    (when backup-file--queue
+      (setq backup-file-git-commit-locked t)
+      (let* ((job (pop backup-file--queue))
+             (path (nth 0 job))
+             (contents (nth 1 job))
+             (coding (nth 2 job)))
+        (condition-case err
+            (progn
+              (backup-file-ensure-depot)
+              (backup-file-clear-path path)
+              (make-directory (file-name-directory path) t)
+              (let ((coding-system-for-write coding))
+                (write-region contents nil path nil 'nomsg))
+              (let ((process
+                     (start-process
+                      "git-backup-file" nil backup-file-git-executable
+                      "-C" (backup-file--location) "add" "--" path)))
+                (process-put process 'backup-file-job job)
+                (set-process-query-on-exit-flag process nil)
+                (set-process-sentinel process #'backup-file--add-sentinel)))
+          (error
+           (backup-file--finish-job (error-message-string err))))))))
 
 (defun backup-file ()
   (interactive)
-  (unless (and nil backup-file-git-commit-locked) ;;; the backup-file-git-commit-locked stuff doesn't work correctly. Disable for now.
-    (let* ((path (backup-file-file-path (buffer-file-name))))
-      (when path
-        (backup-file-ensure-depot)
-        (backup-file-clear-path path)
-        (mkdir (file-name-directory path) t)
-        (condition-case nil
-            (progn
-              (save-restriction
-                (widen)
-                (write-region (point-min) (point-max) path nil 'nomsg))
-              (call-process backup-file-git-executable nil nil nil "-C" (backup-file--location) "add" path)
-              (let ((proc (start-process "git-backup-file" nil backup-file-git-executable "-C" (backup-file--location) "commit" "-m" (format "Update %s from emacs" (file-name-nondirectory (buffer-file-name))))))
-                (when proc
-                  (setq backup-file-git-commit-locked t)
-                  (set-process-sentinel proc (function backup-file-git-commit-sentinel)))))
-          (error
-           (message "backup-file: Some error happened")))))))
+  (let* ((source-file (buffer-file-name))
+         (path (and source-file (backup-file-file-path source-file))))
+    (when path
+      (let ((contents (save-restriction
+                        (widen)
+                        (buffer-substring-no-properties (point-min) (point-max))))
+            (coding (or buffer-file-coding-system 'utf-8-unix)))
+        (setq backup-file--queue
+              (nconc backup-file--queue
+                     (list (list path contents coding
+                                 (file-name-nondirectory source-file)))))
+        (backup-file--start-next)))))
 
 (defun backup-file-switch-to-log ()
   (interactive)
